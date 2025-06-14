@@ -1,0 +1,30 @@
+Du bist ein professioneller Python Programmierer und Astronom. 
+Du hast vier verschiedene Teleskope, die alle unterschiedliche Brennweiten haben.
+Du verwändest die Software N.i.n.a., um die Bilder zu erstellen.
+N.i.n.a. legt standardmäßig Haupt-Ordner an, die mit dem Datum beginnen. 
+In diesem Ordner befinden Unterordner mit den Namen "FLAT", "DARK", "BIAS", "LIGHT", "SNAPSHOT", diese Ordner sollen erhalten bleiben. 
+In diesen Unterordnern befinden sich die Bilder die im Fits Format abgelegt werden. 
+Der Ausgangsordner soll als Parameter übergeben werden. Wenn kein Parameter angegeben wird, soll der aktuelle Ordner, in dem sich das Skript befindet, verwendet werden.
+Bitte füge eine dry-run Funktion am Anfang des Codes ein: DRY-RUN=TRUE oder FALSE
+Bitte schreib mir ein Python Programm, dass die Ordner umbenennt indem es die Fits-Header ausliest und den übergeordneten Ordner in dem sich die Lights befinden nach folgendem Schema umbenennt:
+
+Ordner:
+"OBJECT"_"TELESCOP"_"DATE-LOC"_"FOCALLEN"_e"EXPOSURE"_g"GAIN"_t"CCD-TEMP"_"CAMERAID" 
+Wenn das OBJECT keinen Namen oder einen leere String hat soll es "UNKNOWN" heissen.
+Alle "Leerzeichen" in den ausgelesen Header Werten sollen durch einen Bindestrich "–" ersetzt werden.
+"DATE-LOC" soll in den Dateinamen nur Jahr-Monat-Tag enthalten. 
+
+Dateien:
+Die original Fits Dateien enden mit einer Numerierung, einer Zahlenfolge wie zB _0001, _0002 usw.  
+Diese Numerierung soll in dem umbenannten Dateinamen als suffix vor der Endunf .fits erhalten bleiben. 
+Die einzelnen Fits-files sollen nach folgendem Schema umbenannt werden:
+"IMAGETYP"_"DATE-LOC"_e"EXPOSURE"_g"GAIN"_t"CCD-TEMP"_"OBJECT"_"Number from source file".fits
+
+Beispiel für einen Dateinamen: 
+2025-06-13\LIGHT\2025-06-14_00-14-59_Slot 1_-9.80_180.00s_0007.fits
+Das Ergebnis soll dann so aussehen: 
+M-51_ASA10_2025-06-14_950.0_e180.0_g200_t-9.8_ZWO-ASI2600MC-Pro\LIGHT\LIGHT_2025-06-14_e180.0_g200_t-9.8_M-51_0007.fits
+
+Wenn Du Fragen dazu hast oder etwas nicht verstanden hast, stelle die Fragen bevor du anfängst einen Code zu erzeugen
+
+
