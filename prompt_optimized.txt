@@ -1,0 +1,123 @@
+Kontext: Astrofotografie-Datenverwaltung für N.I.N.A.-Aufnahmen mit Teleskop-Metadaten
+
+Ziel: Python-Skript zur automatischen Umorganisation von FITS-Dateien nach Objekt, Aufnahmeparametern und Datum.
+
+1. Kernanforderungen
+Ordnerstruktur
+Eingabe:
+Hauptordner (CLI-Parameter oder aktuelles Verzeichnis)
+Unterordner: LIGHT, DARK, FLAT, BIAS, SNAPSHOT (N.I.N.A.-Standard)
+
+Ausgabe:
+Neue Ordner: Pro eindeutiger Kombination aus:
+f"{OBJECT}_{TELESCOP}_{DATE-LOC(YYYY-MM-DD)}_{FOCALLEN}_e{EXPOSURE}_g{GAIN}_t{CCD-TEMP}_{CAMERAID}"
+Beispiel: M-51_ASA10_2025-06-14_950.0_e180.0_g200_t-9.8_ZWO-ASI2600MC-Pro
+
+Unterordner erhalten: Originalstruktur (LIGHT/, DARK/, etc.) im neuen Ordner
+
+Dateibenennung
+Originalname: YYYY-MM-DD_HH-mm_<Beschreibung>_<NUMMER>.fits (z.B. 2025-06-14_00-14-59_Slot1_0007.fits)
+
+Neuer Name:
+f"{IMAGETYP}_{DATE-LOC(YYYY-MM-DD)}_e{EXPOSURE}_g{GAIN}_t{CCD-TEMP}_{OBJECT}_{NUMMER}.fits"
+Beispiel: LIGHT_2025-06-14_e180.0_g200_t-9.8_M-51_0007.fits
+
+Header-Verarbeitung
+Sonderzeichen: Ersetze Leerzeichen/Sonderzeichen durch Bindestriche ( → -, : → -)
+
+Fehlende Werte:
+OBJECT = "" → UNKNOWN
+
+Andere fehlende Header → NA
+2. Technische Spezifikationen
+Funktionalitäten
+DRY-RUN-Modus: Testlauf ohne Dateioperationen (DRY_RUN = True/False)
+
+Logging:
+Datei: YYYY-MM-DD_HH-MM-SS_fits_organizer.log im Ausgangsordner
+Konsolenoutput: Echtzeit-Feedback
+Protokollierte Aktionen:
+Dateiverschiebungen (Quell-/Zielpfad)
+Übersprungene Dateien (identische Pfade)
+Gelöschte leere Ordner
+Fehler (fehlende Header, IO-Probleme)
+Leere Ordner: Automatisch löschen nach Verarbeitung
+Code-Qualität
+Bibliotheken:
+import os, shutil, logging, argparse
+from astropy.io import fits
+from datetime import datetime
+Struktur:
+
+Hauptfunktionen:
+def process_directory(source_dir: str) -> None:  # Haupt-Loop
+def create_target_dir(source_dir: str, header: fits.Header) -> str:  # Ordnerpfad-Generierung
+def process_fits_file(source_path: str, target_dir: str) -> None:  # Einzeldateiverarbeitung
+Hilfsfunktionen:
+
+def get_header_value(header: fits.Header, key: str, default: str = "N/A") -> str:  # Header-Extraktion mit Bereinigung
+def setup_logging(source_dir: str) -> None:  # Logging-Initialisierung
+Style:
+PEP-8, Typ-Hints, Google-Style Docstrings
+
+Trennung von Logik und I/O-Operationen
+
+3. Beispiele & Edge Cases
+Szenario 1: Typische Nacht mit M-51
+Eingabe:
+
+/raw_data/2025-06-14/
+├── LIGHT/2025-06-14_00-14-59_Slot1_0007.fits
+├── DARK/2025-06-14_00-20-00_Dark_0001.fits
+
+Ausgabe:
+
+/raw_data/M-51_ASA10_2025-06-14_950.0_e180.0_g200_t-9.8_ASI2600MC/
+├── LIGHT/LIGHT_2025-06-14_e180.0_g200_t-9.8_M-51_0007.fits
+├── DARK/DARK_2025-06-14_e180.0_g200_t-9.8_M-51_0001.fits
+Szenario 2: Fehlende Header
+Eingabe: Datei mit OBJECT = ""
+
+Ausgabe: Ordner UNKNOWN_ASA10_2025-06-14_...
+
+4. Qualitätskriterien
+Robustheit:
+Fehlertoleranz bei kaputten FITS-Dateien
+Skip-Logik für existierende Zieldateien
+
+Performance:
+Wiederverwendung von Zielordnern für gleiche Objekt-Datum-Paare
+Keine redundanten Dateioperationen
+
+Astro-spezifisch:
+Kompatibel mit N.I.N.A.-Metadaten
+Korrekte Behandlung von Teleskopkoordinaten (RA, DEC, AIRMASS)
+5. Optimaler Prompt-Text
+text
+Erstelle ein Python-Skript zur Organisation von Astrofotografie-FITS-Dateien gemäß folgenden Vorgaben:
+
+1. Eingabe:
+   - Hauptordner (CLI-Parameter oder aktuelles Verzeichnis) mit N.I.N.A.-Standardunterordnern (LIGHT, DARK, FLAT, BIAS, SNAPSHOT).
+   - FITS-Dateien mit Namen wie "YYYY-MM-DD_HH-mm_*_XXXX.fits" (XXXX = 4-stellige Nummer).
+
+2. Verarbeitung:
+   - Gruppiere Dateien nach OBJECT + DATE-LOC (YYYY-MM-DD).
+   - Erstelle Zielordner nach Schema: "OBJECT_TELESCOP_DATE-LOC_FOCALLEN_eEXPOSURE_gGAIN_tCCD-TEMP_CAMERAID".
+   - Benenne Dateien um: "IMAGETYP_DATE-LOC_eEXPOSURE_gGAIN_tCCD-TEMP_OBJECT_XXXX.fits".
+   - Ersetze Leerzeichen/Sonderzeichen in Header-Werten durch Bindestriche.
+
+3. Funktionen:
+   - DRY-RUN-Modus (Testlauf ohne Änderungen).
+   - Logging in Datei (YYYY-MM-DD_HH-MM-SS.log) + Konsole.
+   - Löschung leerer Quellordner nach Verarbeitung.
+   - Fehlertoleranz (fehlende Header → UNKNOWN/N/A).
+
+4. Code-Qualität:
+   - Bibliotheken: astropy.io.fits, os, shutil, logging, argparse.
+   - Struktur: Hauptfunktion process_directory() mit Objekt-Datum-Gruppierung.
+   - PEP-8, Typ-Hints, Docstrings.
+
+Beispielausgabe:
+- Zielordner: /data/M-51_ASA10_2025-06-14_950_e180_g200_t-9.8_ASI2600MC/
+- Dateiname: LIGHT_2025-06-14_e180_g200_t-9.8_M-51_0007.fits
+- Log: "2025-06-15 12:00:00 - Verschiebe: /raw/... → /data/.../LIGHT/..."
