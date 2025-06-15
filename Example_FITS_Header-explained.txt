@@ -1,0 +1,67 @@
+SIMPLE  =                    T / Standardkonformes FITS-Format (T=true)
+BITPIX  =                   16 / Ganzzahl-Datenformat (16-Bit pro Pixel)                              
+NAXIS   =                    2 / Anzahl der Dimensionen (2D-Bild)                                     
+NAXIS1  =                 6248 / Bildbreite in Pixeln (X-Achse)                                       
+NAXIS2  =                 4176 / Bildhöhe in Pixeln (Y-Achse)                                         
+BZERO   =                32768 / Offset für unsigned Integer (32768 = Nullpunkt)                      
+EXTEND  =                    T / Erweiterungen in Datei erlaubt (T=true)                              
+IMAGETYP= 'LIGHT'              / Aufnahmetyp: Lichtbelichtung (alternativ: DARK/FLAT/BIAS)            
+EXPOSURE=                180.0 / [s] Belichtungsdauer in Sekunden                                     
+EXPTIME =                180.0 / [s] Synonym für EXPOSURE (historische Kompatibilität)                
+DATE-LOC= '2025-06-13T23:57:30.115' / Lokale Aufnahmezeit (MESZ, UTC+2)                              
+DATE-OBS= '2025-06-13T21:57:30.115' / Aufnahmezeit in UTC (Weltzeit)                                  
+DATE-AVG= '2025-06-13T21:59:01.692' / Mittelpunkt der Belichtung in UTC                               
+XBINNING=                    1 / Binningfaktor X-Richtung (1=kein Binning)                            
+YBINNING=                    1 / Binningfaktor Y-Richtung (1=kein Binning)                            
+GAIN    =                  200 / Kameragain (empfindlichkeitseinstellung)                             
+OFFSET  =                   50 / Basis-Offset des Sensors (Schwarzpegel)                               
+EGAIN   =    0.076800003647804 / [e-/ADU] Umrechnung: Elektronen pro Analog-Digital-Einheit            
+XPIXSZ  =                 3.76 / [µm] Physische Pixelgröße (X)                                        
+YPIXSZ  =                 3.76 / [µm] Physische Pixelgröße (Y)                                        
+INSTRUME= 'ZWO ASI2600MC Pro'  / Kameramodell (Farb-Sensor mit Bayer-Matrix)                          
+CAMERAID= 'ZWO ASI2600MC Pro'  / Eindeutige Kamera-ID                                                
+SET-TEMP=                -10.0 / [°C] Zieltemperatur des Sensors (Kühlung)                            
+CCD-TEMP=                 -9.7 / [°C] Tatsächliche Sensortemperatur                                   
+BAYERPAT= 'RGGB'               / Bayer-Filteranordnung (Rot-Grün-Grün-Blau)                           
+XBAYROFF=                    0 / X-Offset des Bayer-Musters (0=standard)                              
+YBAYROFF=                    0 / Y-Offset des Bayer-Musters (0=standard)                              
+USBLIMIT=                   40 / USB-Bandbreitenlimitierung (kameraintern)                            
+TELESCOP= 'ASA10'              / Teleskopname (ASA 10" Astrograph)                                    
+FOCALLEN=                950.0 / [mm] Effektive Brennweite                                            
+FOCRATIO=                  3.8 / Öffnungsverhältnis (f/3.8)                                           
+RA      =     202.467821858342 / [deg] Rektaszension des Teleskops (J2000)                            
+DEC     =        47.1952734375 / [deg] Deklination des Teleskops (J2000)                              
+CENTALT =     64.0919359231696 / [deg] Teleskophöhe über Horizont                                     
+CENTAZ  =     281.024392452049 / [deg] Teleskopazimut (Nord=0°, Ost=90°)                              
+AIRMASS =     1.11140110397827 / Luftmasse (1.0=Zenit, ~1.11=~30° Höhe)                               
+PIERSIDE= 'East'               / Montierungsseite (Ost = Standard für deutsche Standorte)              
+SITEELEV=                420.0 / [m] Höhe des Standorts über NN                                        
+SITELAT =                 49.0 / [deg] Geografische Breite (z.B. 49°=Stuttgart)                       
+SITELONG=                  9.0 / [deg] Geografische Länge (z.B. 9°=Stuttgart)                         
+FWHEEL  = 'EFW'                / Filterradmodell (Electronic Filter Wheel)                            
+FILTER  = 'Slot 1'             / Aktiver Filterplatz (z.B. Luminanz/UV/IR)                            
+OBJECT  = 'M 51'               / Objektname (Whirlpool-Galaxie)                                       
+OBJCTRA = '13 29 53'           / [H M S] Objekt-Rektaszension (historisches Format)                   
+OBJCTDEC= '+47 11 43'          / [D M S] Objekt-Deklination (historisches Format)                     
+OBJCTROT=               268.81 / [deg] Geplante Bildrotation (für Nachführung)                        
+FOCNAME = 'ZWO Focuser (1)'    / Motorisierter Fokussierer                                            
+FOCPOS  =                  307 / [step] Fokusposition in Schritten                                    
+FOCUSPOS=                  307 / [step] Synonym für FOCPOS                                            
+FOCUSSZ =                  0.0 / [µm] Schrittgröße des Fokussierers (0=unbekannt)                    
+FOCTEMP =     27.6399993896484 / [°C] Temperatur des Fokussierers                                     
+FOCUSTEM=     27.6399993896484 / [°C] Synonym für FOCTEMP                                             
+ROWORDER= 'TOP-DOWN'           / Bildorientierung (erste Zeile = oberer Rand)                         
+EQUINOX =               2000.0 / Äquinoktium der Koordinaten (J2000.0)                                
+SWCREATE= 'N.I.N.A. 3.1.2.9001 (x64)' / Aufnahmesoftware (Nighttime Imaging 'N' Astronomy)             
+Wichtige Hinweise:
+Formatierung:
+
+Jede Zeile ist exakt 80 Zeichen lang (FITS-Standard)
+Werte beginnen in Spalte 31, Kommentare nach Spalte 41 (mit /)
+
+Redundanzen:
+    Doppelte Einträge wie FOCPOS/FOCUSPOS oder FOCTEMP/FOCUSTEM stammen aus der Kamera-Software und wurden bewusst beibehalten
+Typische Werte:
+    AIRMASS < 1.5 → Gute Bedingungen (geringe atmosphärische Störung)
+    CCD-TEMP ≈ SET-TEMP → Kühlung funktioniert optimal
+    EGAIN ≈ 0.0768 → Typisch für die ZWO ASI2600MC

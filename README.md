@@ -48,7 +48,7 @@ astropy
 Install with:
 
 ```bash
-pip install astropy
+pip3 install astropy
 ```
 ## 🛡 License
 This project is licensed under the MIT License.
@@ -98,7 +98,7 @@ astropy
 
 Installieren mit:
 ```bash
-pip install astropy
+pip3 install astropy
 ```
 ## 🛡 Lizenz
 Dieses Projekt steht unter der MIT-Lizenz.
