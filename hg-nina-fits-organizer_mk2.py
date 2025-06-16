@@ -136,8 +136,11 @@ def main():
                     log(f"Zielordner {new_folder_path} existiert bereits, überspringe Umbenennung!")
                     continue
             else:
-                # Im Dry-Run: keine echte Umbenennung
-                pass
+                # Im Dry-Run:
+                log(f"Im Dry-Run: Ordner {entry_path} würde zu {new_folder_path} umbenannt.")
+                entry_path = new_folder_path
+
+                                
 
         # Jetzt alle FITS-Dateien in den Unterordnern umbenennen
         for sub in ["LIGHT", "FLAT", "DARK", "BIAS", "SNAPSHOT"]:
