@@ -70,7 +70,12 @@ def sanitize(text: str, default: str = "LEER") -> str:
         text = text.replace(old, new)
     return text.strip()
 
-def get_header_value(header, key, default="LEER"):
+def clean_dashes(text: str) -> str:
+    """Ersetzt aufeinanderfolgende Bindestriche durch einen einzelnen."""
+    import re
+    return re.sub(r'-{2,}', '-', text).strip('-')
+
+def get_header_value(header, key, default="NA"):
     """Hole einen Header-Wert oder gib Default zurück."""
     value = header.get(key, default)
     return sanitize(value) if value != "" else default
@@ -87,6 +92,7 @@ def create_target_directory(source_dir, header):
     camera_id = get_header_value(header, "CAMERAID")
 
     dir_name = f"{object_name}_{telescope}_{date_loc}_{focal_length}_e{exposure}_g{gain}_t{ccd_temp}_{camera_id}"
+    dir_name = clean_dashes(dir_name)  # Bereinige doppelte Bindestriche!
     target_dir = os.path.join(source_dir, dir_name)
     return target_dir
 
@@ -106,7 +112,7 @@ def process_fits_file(source_path, target_dir):
     base_name = os.path.basename(source_path)
     number_part = "_" + base_name.split("_")[-1].split(".")[0]  # Behält "_0007"
     new_filename = f"{imagetype}_{date_loc}_e{exposure}_g{gain}_t{ccd_temp}_{object_name}{number_part}.fits"
-
+    new_filename = clean_dashes(new_filename)  # Bereinigt z.B. "LIGHT_2025-06-14_e--g200_t-9.8_M-51_0007.fits"
     # Zielpfad erstellen (z.B. "M-51_.../LIGHT/LIGHT_..._0007.fits")
     subfolder = imagetype if imagetype in ["LIGHT", "DARK", "FLAT", "BIAS", "SNAPSHOT"] else "OTHER"
     target_subdir = os.path.join(target_dir, subfolder)
