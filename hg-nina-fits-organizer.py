@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+"""
+Hg-NINA-FITS-Organizer
+This Python script organizes and renames FITS files created by the 
+astrophotography software N.I.N.A.. 
+It reads FITS headers and automatically restructures folders and filenames 
+based on imaging parameters and object names.
+
+Ein Skript zum Organisieren von FITS-Dateien, die von NINA (Nighttime Imaging 'N' Astronomy) generiert wurden.
+Dieses Skript sortiert FITS-Dateien in Unterordnern basierend auf den Metadaten in den Headern der Dateien.
+
+Copyright (c) 2024-2025 by ramona & hagen.gloetter@gmail.com
+Dieses Skript ist lizenziert unter der MIT-Lizenz.
+"""
+
+# usage:
+#  python .\hg-nina-fits-organizer_ds.py --source K:\NINA\NINA\
+
 import os
 import shutil
 from astropy.io import fits
