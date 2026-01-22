@@ -2,10 +2,12 @@
 Write-Host "Setting up Astro Python Environment..." -ForegroundColor Green
 
 # Venv erstellen
-python -m venv astro_env
+#python -m venv astro_env
+py -3.12 -m venv astro_env
 
 # Aktivieren
-.\astro_env\Scripts\Activate.ps1
+#.\astro_env\Scripts\Activate.ps1
+astro_env\Scripts\activate
 
 # Pakete installieren
 pip install astropy numpy
