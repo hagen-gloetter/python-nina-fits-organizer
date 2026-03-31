@@ -1,18 +1,18 @@
-# Setup Script für Astro-Projekt
-Write-Host "Setting up Astro Python Environment..." -ForegroundColor Green
+@echo off
+setlocal
 
-# Venv erstellen
-#python -m venv astro_env
-py -3.12 -m venv astro_env
+echo Setting up Python virtual environment...
 
-# Aktivieren
-#.\astro_env\Scripts\Activate.ps1
-astro_env\Scripts\activate
+if not exist astro_env (
+	py -3 -m venv astro_env
+)
 
-# Pakete installieren
-pip install astropy numpy
+call astro_env\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 
-Write-Host "✅ Setup completed! Virtual environment is ready." -ForegroundColor Green
-Write-Host "Use: .\astro_env\Scripts\Activate.ps1" -ForegroundColor Yellow
+echo.
+echo Setup completed.
+echo Activate with: astro_env\Scripts\activate.bat
 
-.\astro_env\Scripts\activate
+endlocal

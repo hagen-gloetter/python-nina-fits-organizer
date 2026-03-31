@@ -1,264 +1,302 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Hg-NINA-FITS-Organizer
+Organize and rename FITS files produced by N.I.N.A.
 This Python script organizes and renames FITS files created by the 
 astrophotography software N.I.N.A.. 
 It reads FITS headers and automatically restructures folders and filenames 
 based on imaging parameters and object names.
 
-Ein Skript zum Organisieren von FITS-Dateien, die von NINA (Nighttime Imaging 'N' Astronomy) generiert wurden.
-Dieses Skript sortiert FITS-Dateien in Unterordnern basierend auf den Metadaten in den Headern der Dateien.
-
 Copyright (c) 2024-2025 by ramona & hagen.gloetter@gmail.com
-Dieses Skript ist lizenziert unter der MIT-Lizenz.
 """
 
-# usage:
-#  python .\hg-nina-fits-organizer_ds.py --source K:\NINA\NINA\
+from __future__ import annotations
 
-import os
-import shutil
-from astropy.io import fits
-from datetime import datetime
 import argparse
 import logging
+import os
+import re
+import shutil
 import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Iterable, Tuple
 
-# Konfiguration
-DRY_RUN = False  # Trockenlauf: True (Testmodus), False (echte Ausführung)
+from astropy.io import fits
 
-def setup_logging(source_dir):
-    log_filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_fits_organizer.log"
-    log_path = os.path.join(source_dir, log_filename)
-    
-    # Konfiguriere Logging für Datei UND Konsole
+SUPPORTED_CAPTURE_DIRS = {"LIGHT", "DARK", "FLAT", "BIAS", "SNAPSHOT"}
+TARGET_SUBDIR_MAP = {"SNAPSHOT": "PROCESSING"}
+CRITICAL_FIELDS = ("OBJECT", "TELESCOP", "DATE-LOC", "FOCALLEN", "EXPOSURE", "CAMERAID")
+
+
+def setup_logging(source_dir: Path) -> Path:
+    """Set up console and file logging once and return the log file path."""
+    log_filename = f"{datetime.now():%Y-%m-%d_%H-%M-%S}_fits_organizer.log"
+    log_path = source_dir / log_filename
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    
-    # Logging in Datei
-    file_handler = logging.FileHandler(log_path)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(file_handler)
-    
-    # Logging auf Konsole
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(console_handler)
-    
-    logging.info(f"Starte Verarbeitung in: {source_dir}")
+    logger.handlers.clear()
 
-def clean_string(value):
-    """Ersetze Leerzeichen durch Bindestriche und entferne ungültige Zeichen."""
-    if not isinstance(value, str):
-        value = str(value)
-    return value.replace(" ", "-").replace("/", "-").replace(":", "-")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    logging.info("Starte Verarbeitung in: %s", source_dir)
+    return log_path
+
+
+def clean_string(value: object) -> str:
+    """Normalize values for filesystem-safe names."""
+    text = str(value).strip()
+    text = text.replace(" ", "-")
+    text = re.sub(r"[\\/:*?\"<>|]", "-", text)
+    return clean_dashes(text)
+
 
 def clean_dashes(text: str) -> str:
-    """Ersetzt aufeinanderfolgende Bindestriche durch einen einzelnen."""
-    import re
-    return re.sub(r'-{2,}', '-', text).strip('-')
+    """Collapse repeated dashes and trim edges."""
+    return re.sub(r"-{2,}", "-", text).strip("-")
 
-def clean_camera_name(camera_id):
-    """Entfernt überflüssige 'ZWOptical_ZWO' Präfixe aus Kameranamen."""
-    if not isinstance(camera_id, str):
-        camera_id = str(camera_id)
-    # Entferne "ZWOptical_ZWO" und "ZWO" Präfixe
-    camera_id = camera_id.replace("ZWOptical_ZWO", "").replace("ZWO", "").strip(" _-")
-    return camera_id
 
-def get_header_value(header, key, default="N/A"):
-    """Hole einen Header-Wert oder gib Default zurück."""
+def clean_camera_name(camera_id: object) -> str:
+    """Remove common noisy camera prefixes."""
+    camera_text = str(camera_id)
+    camera_text = camera_text.replace("ZWOptical_ZWO", "").replace("ZWO", "")
+    return clean_dashes(camera_text.strip(" _-"))
+
+
+def get_header_value(header: fits.Header, key: str, default: str = "N/A") -> str:
+    """Read and sanitize a FITS header value with fallback handling."""
     value = header.get(key, default)
+    if value in (None, ""):
+        return default
     if key == "CAMERAID":
         value = clean_camera_name(value)
-    return clean_string(value) if value != "" else default
+    return clean_string(value)
 
-def count_unknown_fields(header):
-    """Zählt wie viele kritische Felder UNKNOWN oder N/A sind."""
-    critical_fields = ["OBJECT", "TELESCOP", "DATE-LOC", "FOCALLEN", "EXPOSURE", "CAMERAID"]
+
+def count_unknown_fields(header: fits.Header) -> int:
+    """Count missing critical fields to avoid bad grouping and naming."""
     unknown_count = 0
-    
-    for field in critical_fields:
-        value = get_header_value(header, field, "N/A")
-        if value in ["UNKNOWN", "N/A"]:
+    for field in CRITICAL_FIELDS:
+        if get_header_value(header, field, "N/A") in {"UNKNOWN", "N/A"}:
             unknown_count += 1
-    
     return unknown_count
 
-def create_target_directory(source_dir, header, imagetype):
-    """Erzeuge den Zielordner-Namen basierend auf dem Header und IMAGETYP."""
+
+def get_date_part(header: fits.Header) -> str:
+    """Extract YYYY-MM-DD from DATE-LOC when available."""
+    raw = get_header_value(header, "DATE-LOC")
+    return raw.split("T", 1)[0]
+
+
+def derive_suffix_from_filename(file_path: Path) -> str:
+    """Preserve sequence numbers from source names where possible."""
+    match = re.search(r"(\d+)$", file_path.stem)
+    if match:
+        return f"_{match.group(1)}"
+    return ""
+
+
+def get_capture_stamp(header: fits.Header) -> str:
+    """Build a sortable YYYYMMDD-HHMMSS prefix from DATE-LOC."""
+    raw = str(header.get("DATE-LOC", ""))
+    if not raw:
+        return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    normalized = raw.replace("Z", "").strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(normalized, fmt)
+            return dt.strftime("%Y%m%d-%H%M%S")
+        except ValueError:
+            continue
+
+    return clean_dashes(normalized.replace(":", "").replace("T", "-"))
+
+
+def create_target_directory(source_dir: Path, header: fits.Header) -> Path:
+    """Build one session folder per object and acquisition setup."""
     object_name = get_header_value(header, "OBJECT", "UNKNOWN")
     telescope = get_header_value(header, "TELESCOP")
-    date_loc = get_header_value(header, "DATE-LOC").split("T")[0]  # Nur YYYY-MM-DD
+    date_loc = get_date_part(header)
     focal_length = get_header_value(header, "FOCALLEN")
-    exposure = get_header_value(header, "EXPOSURE")
     gain = get_header_value(header, "GAIN")
     ccd_temp = get_header_value(header, "CCD-TEMP")
     camera_id = get_header_value(header, "CAMERAID")
 
-    # Für DARK und FLAT: Spezielle Ordnernamen
-    if imagetype.upper() in ["DARK", "FLAT"]:
-        dir_name = f"{imagetype.upper()}_{telescope}_{date_loc}_{focal_length}_e{exposure}_g{gain}_t{ccd_temp}_{camera_id}"
-    else:
-        dir_name = f"{object_name}_{telescope}_{date_loc}_{focal_length}_e{exposure}_g{gain}_t{ccd_temp}_{camera_id}"
-    
-    dir_name = clean_dashes(dir_name)  # Bereinige doppelte Bindestriche!
-    target_dir = os.path.join(source_dir, dir_name)
-    return target_dir
+    dir_name = f"{object_name}_{telescope}_{date_loc}_{focal_length}_g{gain}_t{ccd_temp}_{camera_id}"
 
-def process_fits_file(source_path, target_dir, imagetype):
-    """Verarbeite eine FITS-Datei: Kopiere/verschiebe sie mit neuem Namen."""
-    with fits.open(source_path) as hdul:
-        header = hdul[0].header
+    return source_dir / clean_dashes(dir_name)
 
-    # Prüfe auf zu viele UNKNOWN-Felder
-    unknown_count = count_unknown_fields(header)
-    if unknown_count > 2:
-        logging.warning(f"SKIP: Zu viele unbekannte Felder ({unknown_count}) -> {source_path}")
-        print(f"⚠️  SKIP: {os.path.basename(source_path)} (zu viele unbekannte Felder: {unknown_count})")
-        return
 
-    date_loc = get_header_value(header, "DATE-LOC").split("T")[0]
+def build_session_key(header: fits.Header) -> Tuple[str, str, str, str, str, str]:
+    """Group files by object and stable setup, intentionally ignoring exposure."""
+    return (
+        get_header_value(header, "OBJECT", "UNKNOWN"),
+        get_header_value(header, "TELESCOP"),
+        get_date_part(header),
+        get_header_value(header, "FOCALLEN"),
+        get_header_value(header, "GAIN"),
+        get_header_value(header, "CAMERAID"),
+    )
+
+
+def build_target_filename(source_path: Path, header: fits.Header, imagetype: str) -> str:
+    """Build destination filename in a deterministic and readable format."""
+    capture_stamp = get_capture_stamp(header)
+    date_loc = get_date_part(header)
     exposure = get_header_value(header, "EXPOSURE")
     gain = get_header_value(header, "GAIN")
     ccd_temp = get_header_value(header, "CCD-TEMP")
     object_name = get_header_value(header, "OBJECT", "UNKNOWN")
-    telescope = get_header_value(header, "TELESCOP")
     filter_name = get_header_value(header, "FILTER", "NOFILTER")
     camera_id = get_header_value(header, "CAMERAID")
+    number_part = derive_suffix_from_filename(source_path)
 
-    # Extrahiere Nummer aus dem Dateinamen (z.B. "_0007" in "file_0007.fits")
-    base_name = os.path.basename(source_path)
-    number_part = "_" + base_name.split("_")[-1].split(".")[0]  # Behält "_0007"
-    
-    # Für DARK und FLAT: Spezielle Dateinamen mit Teleskop
-    if imagetype.upper() in ["DARK", "FLAT"]:
-        new_filename = f"{imagetype.upper()}_{date_loc}_{object_name}_{camera_id}_e{exposure}_g{gain}_{filter_name}_t{ccd_temp}{number_part}.fits"
-    else:
-        # LIGHT Dateien: IMAGETYP_DATUM_OBJECT_KAMERA_eEXPOSURE_gGAIN_FILTER_tTEMP_NUMMER
-        new_filename = f"{imagetype.upper()}_{date_loc}_{object_name}_{camera_id}_e{exposure}_g{gain}_{filter_name}_t{ccd_temp}{number_part}.fits"
-    
-    new_filename = clean_dashes(new_filename)  # Bereinige doppelte Bindestriche!
+    new_filename = (
+        f"{capture_stamp}_{imagetype}_{date_loc}_{object_name}_{camera_id}_"
+        f"e{exposure}_g{gain}_{filter_name}_t{ccd_temp}{number_part}.fits"
+    )
+    return clean_dashes(new_filename)
 
-    # Zielpfad erstellen (gleiche Ebene für alle Dateitypen)
-    target_subdir = target_dir  # Keine Unterordner mehr für DARK/FLAT
-    os.makedirs(target_subdir, exist_ok=True)
-    target_path = os.path.join(target_subdir, new_filename)
 
-    # Skip-Logik bei identischen Pfaden
-    if os.path.normpath(source_path) == os.path.normpath(target_path):
-        logging.info(f"SKIP: Quelle und Ziel identisch -> {source_path}")
-        if not DRY_RUN:
-            print(f"SKIP: {source_path}")  # Zusätzliche Konsolenausgabe
-        return  # Frühzeitiger Abbruch
+def ensure_unique_path(path: Path) -> Path:
+    """Avoid overwriting existing files by appending numeric suffixes."""
+    if not path.exists():
+        return path
 
-    # Loggen der Aktion
-    logging.info(f"Verschiebe: {source_path} -> {target_path}")
-    if not DRY_RUN:
-        shutil.move(source_path, target_path)
+    stem = path.stem
+    suffix = path.suffix
+    counter = 1
+    while True:
+        candidate = path.with_name(f"{stem}_{counter}{suffix}")
+        if not candidate.exists():
+            return candidate
+        counter += 1
 
-def process_directory(source_dir):
-    """Durchsuche den Ausgangsordner und gruppiere Dateien nach Objekt+Datum+IMAGETYP."""
-    object_date_map = {}  # { (object, date, imagetype): target_dir }
 
-    for root, dirs, files in os.walk(source_dir):
-        for file in files:
-            if file.lower().endswith(".fits"):
-                source_path = os.path.join(root, file)
-                try:
-                    with fits.open(source_path) as hdul:
-                        header = hdul[0].header
+def iter_source_fits_files(source_dir: Path) -> Iterable[Path]:
+    """Only process capture folders to prevent reprocessing already moved files."""
+    for root, _dirs, files in os.walk(source_dir):
+        root_path = Path(root)
+        if root_path.name.upper() not in SUPPORTED_CAPTURE_DIRS:
+            continue
+        for file_name in files:
+            if file_name.lower().endswith(".fits"):
+                yield root_path / file_name
 
-                    # Prüfe auf zu viele UNKNOWN-Felder für die Gruppierung
-                    unknown_count = count_unknown_fields(header)
-                    if unknown_count > 2:
-                        logging.warning(f"SKIP: Zu viele unbekannte Felder ({unknown_count}) -> {source_path}")
-                        print(f"⚠️  SKIP: {file} (zu viele unbekannte Felder: {unknown_count})")
-                        continue  # Überspringe diese Datei komplett
 
-                    imagetype = get_header_value(header, "IMAGETYP").upper()
+def process_fits_file(source_path: Path, target_dir: Path, header: fits.Header, imagetype: str, dry_run: bool) -> bool:
+    """Move one FITS file to target directory using normalized naming."""
+    unknown_count = count_unknown_fields(header)
+    if unknown_count > 2:
+        logging.warning("SKIP: Zu viele unbekannte Felder (%s) -> %s", unknown_count, source_path)
+        print(f"SKIP: {source_path.name} (zu viele unbekannte Felder: {unknown_count})")
+        return False
 
-                    # Eindeutiger Schlüssel für Objekt+Datum+IMAGETYP
-                    object_name = get_header_value(header, "OBJECT", "UNKNOWN")
-                    date_part = get_header_value(header, "DATE-LOC").split("T")[0]
-                    
-                    # Für DARK und FLAT: Gruppiere separat (ohne OBJECT)
-                    if imagetype in ["DARK", "FLAT"]:
-                        object_date_key = (imagetype, date_part)
-                    else:
-                        object_date_key = (object_name, date_part, imagetype)
+    target_subdir = TARGET_SUBDIR_MAP.get(imagetype, imagetype)
+    target_dir = target_dir / target_subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_name = build_target_filename(source_path, header, imagetype)
+    target_path = ensure_unique_path(target_dir / target_name)
 
-                    # Zielordner wiederverwenden oder neu erstellen
-                    if object_date_key not in object_date_map:
-                        target_dir = create_target_directory(source_dir, header, imagetype)
-                        object_date_map[object_date_key] = target_dir
-                        logging.info(f"Neuer Zielordner: {target_dir}")
-                    else:
-                        target_dir = object_date_map[object_date_key]
+    if source_path.resolve() == target_path.resolve():
+        logging.info("SKIP: Quelle und Ziel identisch -> %s", source_path)
+        return False
 
-                    process_fits_file(source_path, target_dir, imagetype)
+    logging.info("Verschiebe: %s -> %s", source_path, target_path)
+    if not dry_run:
+        shutil.move(str(source_path), str(target_path))
+    return True
 
-                except Exception as e:
-                    logging.error(f"Fehler bei {file}: {str(e)}")
 
-    # Bereinige leere Ordner
-    for root, dirs, files in os.walk(source_dir, topdown=False):
-        for dir in dirs:
-            dir_path = os.path.join(root, dir)
-            if not os.listdir(dir_path):
-                logging.info(f"Lösche leeren Ordner: {dir_path}")
-                if not DRY_RUN:
-                    os.rmdir(dir_path)
+def process_directory(source_dir: Path, dry_run: bool) -> Tuple[int, int, int]:
+    """Process all FITS files from N.I.N.A. capture subfolders."""
+    object_date_map: Dict[Tuple[str, str, str, str, str, str], Path] = {}
+    moved_count = 0
+    skipped_count = 0
+    error_count = 0
 
-def print_usage():
-    """Gibt Usage-Informationen aus."""
-    print("\n" + "="*60)
-    print("FITS ORGANIZER - Astrofotografie Datei-Organisation")
-    print("="*60)
-    print("Usage:")
-    print("  python fits_organizer.py <PFAD_ZU_FITS_ORDNER>")
-    print("\nBeispiele:")
-    print("  python fits_organizer.py C:\\Astro\\Aufnahmen\\2025-06-14")
-    print("  python fits_organizer.py \"/home/user/astro/raw_data\"")
-    print("  python fits_organizer.py .                         (aktuelles Verzeichnis)")
-    print("\nOptionen:")
-    print("  --help, -h     Zeige diese Hilfemeldung")
-    print("\nOrdnerstruktur:")
-    print("  LIGHT:  M-51_ASA10_2025-06-14_950_e180_g200_t-9.8_ASI2600MC-Pro/")
-    print("  DARK:   DARK_ASA10_2025-06-14_950_e180_g200_t-9.8_ASI2600MC-Pro/")
-    print("  FLAT:   FLAT_ASA10_2025-06-14_950_e180_g200_t-9.8_ASI2600MC-Pro/")
-    print("\nDateinamen:")
-    print("  LIGHT:  LIGHT_2025-06-14_M-51_ASI2600MC-Pro_e180_g200_L-Pro_t-9.8_0007.fits")
-    print("  DARK:   DARK_2025-06-14_UNKNOWN_ASI2600MC-Pro_e180_g200_NOFILTER_t-9.8_0001.fits")
-    print("  FLAT:   FLAT_2025-06-14_UNKNOWN_ASI2600MC-Pro_e0.1_g200_L-Pro_t-9.8_0001.fits")
-    print("="*60 + "\n")
+    for source_path in iter_source_fits_files(source_dir):
+        try:
+            with fits.open(source_path) as hdul:
+                header = hdul[0].header
 
-def main():
-    # Prüfe Hilfe-Parameter
-    if len(sys.argv) > 1 and (sys.argv[1] in ["--help", "-h", "/?"]):
-        print_usage()
-        sys.exit(0)
-    
-    # Bestimme Quellordner
-    if len(sys.argv) > 1:
-        source_dir = sys.argv[1]
-    else:
-        print("❌ FEHLER: Bitte gib einen Pfad an!")
-        print_usage()
-        sys.exit(1)
-    
-    # Prüfe ob der Ordner existiert
-    if not os.path.exists(source_dir):
-        print(f"❌ FEHLER: Ordner '{source_dir}' existiert nicht!")
-        sys.exit(1)
-    
-    source_dir = os.path.abspath(source_dir)
-    print(f"🎯 Starte Verarbeitung von: {source_dir}")
-    
-    setup_logging(source_dir)
-    process_directory(source_dir)
-    logging.info("Verarbeitung abgeschlossen.")
-    print("✅ Verarbeitung abgeschlossen!")
+            imagetype = get_header_value(header, "IMAGETYP", "UNKNOWN").upper()
+            object_date_key = build_session_key(header)
+
+            if object_date_key not in object_date_map:
+                target_dir = create_target_directory(source_dir, header)
+                object_date_map[object_date_key] = target_dir
+                logging.info("Neuer Zielordner: %s", target_dir)
+            else:
+                target_dir = object_date_map[object_date_key]
+
+            was_moved = process_fits_file(source_path, target_dir, header, imagetype, dry_run)
+            if was_moved:
+                moved_count += 1
+            else:
+                skipped_count += 1
+
+        except Exception as exc:  # Defensive broad catch for batch processing.
+            error_count += 1
+            logging.error("Fehler bei %s: %s", source_path, exc)
+
+    for root, dirs, _files in os.walk(source_dir, topdown=False):
+        for dir_name in dirs:
+            dir_path = Path(root) / dir_name
+            if dir_path.name.upper() not in SUPPORTED_CAPTURE_DIRS:
+                continue
+            if not any(dir_path.iterdir()):
+                logging.info("Lösche leeren Ordner: %s", dir_path)
+                if not dry_run:
+                    dir_path.rmdir()
+
+    return moved_count, skipped_count, error_count
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Create CLI parser."""
+    parser = argparse.ArgumentParser(
+        description="Organisiert N.I.N.A.-FITS-Dateien anhand ihrer Header-Metadaten."
+    )
+    parser.add_argument("source", help="Pfad zum N.I.N.A.-Basisordner")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Nur anzeigen, welche Dateien verschoben würden.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run CLI entrypoint."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    source_dir = Path(args.source).expanduser().resolve()
+    if not source_dir.exists() or not source_dir.is_dir():
+        print(f"FEHLER: Ordner existiert nicht: {source_dir}")
+        return 1
+
+    print(f"Starte Verarbeitung von: {source_dir}")
+    log_path = setup_logging(source_dir)
+    moved, skipped, errors = process_directory(source_dir, dry_run=args.dry_run)
+    logging.info("Verarbeitung abgeschlossen. moved=%s skipped=%s errors=%s", moved, skipped, errors)
+    print(f"Verarbeitung abgeschlossen. moved={moved} skipped={skipped} errors={errors}")
+    print(f"Logdatei: {log_path}")
+
+    return 1 if errors else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

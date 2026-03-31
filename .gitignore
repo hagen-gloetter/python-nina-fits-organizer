@@ -1,1 +1,5 @@
-/astro_env
+astro_env/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log

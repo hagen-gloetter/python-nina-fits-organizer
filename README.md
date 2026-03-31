@@ -1,105 +1,144 @@
 # N.I.N.A. FITS Organizer
-(german version below)
 
-This Python script organizes and renames FITS files created by the astrophotography software [N.I.N.A.](https://nighttime-imaging.eu/). It reads FITS headers and automatically restructures folders and filenames based on imaging parameters and object names.
+Python tools for astrophotography workflows with N.I.N.A.-generated FITS files.
 
-## 🔧 Features
+This repository contains:
+- a production script to organize and rename FITS files safely
+- an analysis script to inspect one FITS file and print useful acquisition stats
+- lightweight automated tests for critical naming/path helpers
 
-- Automatically renames FITS files using metadata from the FITS header:
-  - Object name, telescope, focal length, camera ID, gain, CCD temperature, exposure time, and date
-- Supports all standard N.I.N.A. subfolders: `LIGHT`, `DARK`, `FLAT`, `BIAS`, `SNAPSHOT`
-- Creates a new top-level folder for each unique object with a descriptive name
-- Automatically prevents filename conflicts (appends numbers if needed)
-- Deletes the original folder if it's empty after processing
-- Generates a full log of all actions for review and safety
+## Project Purpose
 
-## 📂 Folder Naming Scheme
+The organizer script restructures FITS files into metadata-based target folders and applies deterministic filenames. This helps with:
+- consistent data curation
+- easier stacking/preprocessing in later tools
+- reduced manual file handling errors
 
-Top-level folder (where "LIGHT" etc. subfolders go):
-```bash
-OBJECT_TELESCOP_DATE-LOC_FOCALLEN_eEXPOSURE_gGAIN_tCCD-TEMP_CAMERAID
-```
-If `OBJECT` is missing or empty, `"UNKNOWN"` is used. All whitespace is replaced with `-`.  
-The `DATE-LOC` field is formatted as `YYYY-MM-DD`.
+## Features
 
-## 🗂 File Naming Scheme
+- Reads FITS headers via astropy
+- Supports N.I.N.A. capture folders: LIGHT, DARK, FLAT, BIAS, SNAPSHOT
+- Generates folder names from object/session metadata
+- Generates deterministic file names from key acquisition values
+- Prevents accidental overwrites by adding numeric suffixes if needed
+- Writes timestamped log files in the selected source directory
+- Supports dry-run mode to preview actions
 
-Each FITS file is renamed as:
-```bash
-IMAGETYP_DATE-LOC_eEXPOSURE_gGAIN_tCCD-TEMP_OBJECT.fits
-```
-Again, all spaces are replaced with `-` and fallback values like `UNKNOWN` are used if headers are missing.
+## Repository Structure
 
-## 🚀 Usage
+- hg-nina-fits-organizer.py: main organizer CLI
+- hg_analyse_fits-files.py: single-file FITS analyzer CLI
+- tests/test_organizer.py: unit tests for helper behavior
+- requirements.txt: Python dependencies
+- make_venv.bat: Windows setup helper
 
-```bash
-python hg-nina-fits-organizer.py /path/to/nina/data
-# If no path is given, the script will use its current directory.
-```
-### 📄 Example Output
-LIGHT_2025-06-13_e120_g100_t-10_M42.fits
-With folder:
-M42_SkyWatcher_2025-06-13_800_e120_g100_t-10_ASI1600MM
+## Setup
 
-## 📦 Requirements
-Python 3.8+
-astropy
+### Requirements
 
-Install with:
+- Python 3.10+
+- pip
+
+### Installation (macOS/Linux/Windows)
 
 ```bash
-pip3 install astropy
+python -m venv astro_env
+source astro_env/bin/activate  # Windows: astro_env\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
-## 🛡 License
-This project is licensed under the MIT License.
 
-Feel free to use, modify, and distribute this software in your own astrophotography workflow!
+### Windows Shortcut
 
+Run:
 
-# German: N.I.N.A. FITS Organizer
+```bat
+make_venv.bat
+```
 
-Dieses Python-Skript organisiert und benennt FITS-Dateien, die mit der Astrofotografie-Software [N.I.N.A.](https://nighttime-imaging.eu/) erstellt wurden. Es analysiert die FITS-Header und erstellt automatisch strukturierte Ordner und Dateinamen nach Inhalt und Aufnahmeparametern.
+## Usage
 
-## 🔧 Funktionen
-
-- Automatische Umbenennung von FITS-Dateien basierend auf:
-  - Objektname, Teleskop, Brennweite, Kamera, Gain, Temperatur, Belichtungszeit
-- Automatische Erstellung neuer Ordnerstrukturen pro Himmelsobjekt
-- Verarbeitung aller relevanten N.I.N.A.-Unterordner (`LIGHT`, `DARK`, `FLAT`, `BIAS`, `SNAPSHOT`)
-- Sicheres Umbenennen (keine Überschreibung bei gleichen Namen)
-- Leere Ursprungsordner werden entfernt
-- Logdatei zur Nachverfolgung aller Änderungen
-
-## 🚀 Verwendung
+### Organize a N.I.N.A. dataset
 
 ```bash
-python hg-nina-fits-organizer.py /pfad/zum/nina/ordner
-Wenn kein Pfad angegeben wird, verwendet das Skript automatisch den Ordner, in dem es liegt.
+python hg-nina-fits-organizer.py /path/to/nina/root
 ```
-## 📂 Ordner-Namensschema
 
-Ordner der obersten Ebene (wo die Unterordner "LIGHT" usw. hinkommen):
+### Dry-run mode
+
 ```bash
-OBJECT_TELESCOP_DATE-LOC_FOCALLEN_eEXPOSURE_gGAIN_tCCD-TEMP_CAMERAID
+python hg-nina-fits-organizer.py /path/to/nina/root --dry-run
 ```
-Wenn `OBJECT` fehlt oder leer ist, wird `"UNKNOWN"` verwendet. Alle Leerzeichen werden durch „-“ ersetzt.  
-Das Feld `DATE-LOC` wird als `YYYY-MM-DD` formatiert.
 
-## 🗂 Dateibenennungsschema
+### Analyze one FITS file
 
-Jede FITS-Datei wird wie folgt umbenannt:
 ```bash
-IMAGETYP_DATE-LOC_eEXPOSURE_gGAIN_tCCD-TEMP_OBJECT.fits
+python hg_analyse_fits-files.py /path/to/file.fits
 ```
-Auch hier werden alle Leerzeichen durch `-` ersetzt und Fallback-Werte wie `UNKNOWN` verwendet, wenn Header fehlen.
 
-## 📦 Abhängigkeiten
-astropy
+## Naming Scheme
 
-Installieren mit:
+### Target folder hierarchy
+
+The organizer creates one session folder and then one subfolder per frame type.
+
+Session folder:
+
+```text
+OBJECT_TELESCOP_DATE_FOCALLEN_gGAIN_tCCD-TEMP_CAMERAID
+```
+
+Exposure is intentionally excluded from the session folder name so multiple exposure times for the same object/session stay together.
+
+Subfolders inside this session folder:
+
+```text
+LIGHT/
+DARK/
+FLAT/
+BIAS/
+PROCESSING/   # created from source folder SNAPSHOT
+```
+
+### Target filename
+
+```text
+YYYYMMDD-HHMMSS_IMAGETYP_DATE_OBJECT_CAMERAID_eEXPOSURE_gGAIN_FILTER_tCCD-TEMP_<sequence>.fits
+```
+
+Invalid filesystem characters are normalized to dashes.
+
+## Configuration Notes
+
+- The organizer only scans files inside known capture directories (LIGHT/DARK/FLAT/BIAS/SNAPSHOT) to avoid re-processing already moved output files.
+- Files with too many unknown critical header fields are skipped by design.
+- Log files are written into the source root and tracked by timestamp.
+
+## Development Workflow
+
+Run tests:
+
 ```bash
-pip3 install astropy
+pytest -q
 ```
-## 🛡 Lizenz
-Dieses Projekt steht unter der MIT-Lizenz.
+
+Recommended local checks before commit:
+- run tests
+- run both CLIs with --help
+- test organizer with --dry-run on representative sample data
+
+## Known Particularities
+
+- FITS header field naming differs between devices/software versions. The scripts include fallbacks, but uncommon custom headers may still require extension.
+- The analyzer prints a compact text report and is intentionally kept dependency-light.
+
+## Security and Safety
+
+- No overwrite by default for existing target names (numeric suffixing)
+- Defensive parsing for numeric values in analyzer output
+- Explicit CLI argument validation for existing file/directory paths
+
+## License
+
+MIT License. See LICENSE.
 
