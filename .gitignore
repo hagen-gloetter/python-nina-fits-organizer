@@ -1,4 +1,6 @@
 astro_env/
+astro_env_linux/
+astro_env_win/
 __pycache__/
 .pytest_cache/
 *.pyc

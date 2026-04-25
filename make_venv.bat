@@ -3,16 +3,16 @@ setlocal
 
 echo Setting up Python virtual environment...
 
-if not exist astro_env (
-	py -3 -m venv astro_env
+if not exist astro_env_win\Scripts\python.exe (
+    py -3.13 -m venv astro_env_win
 )
 
-call astro_env\Scripts\activate.bat
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+astro_env_win\Scripts\python.exe -m ensurepip --upgrade
+astro_env_win\Scripts\python.exe -m pip install --upgrade pip
+astro_env_win\Scripts\python.exe -m pip install -r requirements.txt
 
 echo.
 echo Setup completed.
-echo Activate with: astro_env\Scripts\activate.bat
+echo Activate with: astro_env_win\Scripts\activate.bat
 
 endlocal
