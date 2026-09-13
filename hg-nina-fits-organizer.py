@@ -24,7 +24,8 @@ Beispiele:
     python hg-nina-fits-organizer.py /home/user/bilder/nina/2025-01-15
 
 Hinweis:
-    Die Dateien werden anhand ihrer FITS-Header in Sitzungsordner einsortiert
+    Die Dateien werden anhand von Jahr, OBJECT, Teleskop und Kamera in einen
+    Hauptordner einsortiert
     und umbenannt. Die Originaldateien werden dabei verschoben. Vor dem ersten
     echten Lauf wird ein Test mit --dry-run empfohlen. Eine Zeitstempel-Logdatei
     wird im angegebenen N.I.N.A.-Basisordner angelegt.
@@ -42,13 +43,25 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable
 
 from astropy.io import fits
 
 SUPPORTED_CAPTURE_DIRS = {"LIGHT", "DARK", "FLAT", "BIAS", "SNAPSHOT"}
 TARGET_SUBDIR_MAP = {"SNAPSHOT": "PROCESSING"}
 CRITICAL_FIELDS = ("OBJECT", "TELESCOP", "DATE-LOC", "FOCALLEN", "EXPOSURE", "CAMERAID")
+
+
+class ProcessingSummary:
+    """Collect processing counts for the final console summary."""
+
+    def __init__(self) -> None:
+        self.moved = 0
+        self.skipped = 0
+        self.errors = 0
+        self.empty_dirs = 0
+        self.target_dirs: set[Path] = set()
+        self.files_by_type: Dict[str, int] = {}
 
 
 def setup_logging(source_dir: Path) -> Path:
@@ -68,6 +81,7 @@ def setup_logging(source_dir: Path) -> Path:
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.WARNING)
     logger.addHandler(console_handler)
 
     logging.info("Starte Verarbeitung in: %s", source_dir)
@@ -119,6 +133,11 @@ def get_date_part(header: fits.Header) -> str:
     return raw.split("T", 1)[0]
 
 
+def get_year_part(header: fits.Header) -> str:
+    """Extract the four-digit year from DATE-LOC when available."""
+    return get_date_part(header).split("-", 1)[0]
+
+
 def derive_suffix_from_filename(file_path: Path) -> str:
     """Preserve sequence numbers from source names where possible."""
     match = re.search(r"(\d+)$", file_path.stem)
@@ -145,29 +164,23 @@ def get_capture_stamp(header: fits.Header) -> str:
 
 
 def create_target_directory(source_dir: Path, header: fits.Header) -> Path:
-    """Build one session folder per object and acquisition setup."""
+    """Build one target folder per year, object, telescope, and camera."""
+    year = get_year_part(header)
     object_name = get_header_value(header, "OBJECT", "UNKNOWN")
     telescope = get_header_value(header, "TELESCOP")
-    date_loc = get_date_part(header)
-    focal_length = get_header_value(header, "FOCALLEN")
-    gain = get_header_value(header, "GAIN")
-    ccd_temp = get_header_value(header, "CCD-TEMP")
     camera_id = get_header_value(header, "CAMERAID")
 
-    dir_name = f"{object_name}_{telescope}_{date_loc}_{focal_length}_g{gain}_t{ccd_temp}_{camera_id}"
-
+    dir_name = f"{year}_{object_name}_{telescope}_{camera_id}"
     return source_dir / clean_dashes(dir_name)
 
 
-def build_session_key(header: fits.Header) -> Tuple[str, str, str, str, str, str]:
-    """Group files by object and stable setup, intentionally ignoring exposure."""
+def build_target_directory_key(header: fits.Header) -> str:
+    """Group files that belong to the same year/object/telescope/camera folder."""
     return (
-        get_header_value(header, "OBJECT", "UNKNOWN"),
-        get_header_value(header, "TELESCOP"),
-        get_date_part(header),
-        get_header_value(header, "FOCALLEN"),
-        get_header_value(header, "GAIN"),
-        get_header_value(header, "CAMERAID"),
+        f"{get_year_part(header)}_"
+        f"{get_header_value(header, 'OBJECT', 'UNKNOWN')}_"
+        f"{get_header_value(header, 'TELESCOP')}_"
+        f"{get_header_value(header, 'CAMERAID')}"
     )
 
 
@@ -240,12 +253,32 @@ def process_fits_file(source_path: Path, target_dir: Path, header: fits.Header, 
     return True
 
 
-def process_directory(source_dir: Path, dry_run: bool) -> Tuple[int, int, int]:
+def remove_empty_directories(source_dir: Path, dry_run: bool) -> int:
+    """Remove every empty directory below source_dir, keeping source_dir itself."""
+    planned_removals: set[Path] = set()
+    removed_count = 0
+
+    for root, dirs, _files in os.walk(source_dir, topdown=False):
+        for dir_name in dirs:
+            dir_path = Path(root) / dir_name
+            children = list(dir_path.iterdir())
+            is_empty = not children or all(child in planned_removals for child in children)
+            if not is_empty:
+                continue
+
+            planned_removals.add(dir_path)
+            removed_count += 1
+            logging.info("Entferne leeren Ordner: %s", dir_path)
+            if not dry_run:
+                dir_path.rmdir()
+
+    return removed_count
+
+
+def process_directory(source_dir: Path, dry_run: bool) -> ProcessingSummary:
     """Process all FITS files from N.I.N.A. capture subfolders."""
-    object_date_map: Dict[Tuple[str, str, str, str, str, str], Path] = {}
-    moved_count = 0
-    skipped_count = 0
-    error_count = 0
+    target_dir_map: Dict[str, Path] = {}
+    summary = ProcessingSummary()
 
     for source_path in iter_source_fits_files(source_dir):
         try:
@@ -253,36 +286,60 @@ def process_directory(source_dir: Path, dry_run: bool) -> Tuple[int, int, int]:
                 header = hdul[0].header
 
             imagetype = get_header_value(header, "IMAGETYP", "UNKNOWN").upper()
-            object_date_key = build_session_key(header)
+            target_dir_key = build_target_directory_key(header)
 
-            if object_date_key not in object_date_map:
+            if target_dir_key not in target_dir_map:
                 target_dir = create_target_directory(source_dir, header)
-                object_date_map[object_date_key] = target_dir
+                target_dir_map[target_dir_key] = target_dir
+                summary.target_dirs.add(target_dir)
                 logging.info("Neuer Zielordner: %s", target_dir)
             else:
-                target_dir = object_date_map[object_date_key]
+                target_dir = target_dir_map[target_dir_key]
 
             was_moved = process_fits_file(source_path, target_dir, header, imagetype, dry_run)
             if was_moved:
-                moved_count += 1
+                summary.moved += 1
+                target_subdir = TARGET_SUBDIR_MAP.get(imagetype, imagetype)
+                summary.files_by_type[target_subdir] = summary.files_by_type.get(target_subdir, 0) + 1
+                status = "DRY-RUN" if dry_run else "OK"
+                print(f"[{status:7}] {source_path.name} -> {target_dir / target_subdir}")
             else:
-                skipped_count += 1
+                summary.skipped += 1
 
         except Exception as exc:  # Defensive broad catch for batch processing.
-            error_count += 1
+            summary.errors += 1
             logging.error("Fehler bei %s: %s", source_path, exc)
 
-    for root, dirs, _files in os.walk(source_dir, topdown=False):
-        for dir_name in dirs:
-            dir_path = Path(root) / dir_name
-            if dir_path.name.upper() not in SUPPORTED_CAPTURE_DIRS:
-                continue
-            if not any(dir_path.iterdir()):
-                logging.info("Lösche leeren Ordner: %s", dir_path)
-                if not dry_run:
-                    dir_path.rmdir()
+    summary.empty_dirs = remove_empty_directories(source_dir, dry_run)
 
-    return moved_count, skipped_count, error_count
+    return summary
+
+
+def print_summary(source_dir: Path, log_path: Path, summary: ProcessingSummary, dry_run: bool) -> None:
+    """Print a compact, human-readable processing summary."""
+    total_files = summary.moved + summary.skipped + summary.errors
+    action_label = "Vorgesehen" if dry_run else "Verarbeitet"
+
+    print("\n" + "=" * 64)
+    print("N.I.N.A. FITS ORGANIZER - ZUSAMMENFASSUNG")
+    print("=" * 64)
+    print(f"Quelle        : {source_dir}")
+    print(f"Modus         : {'DRY-RUN (keine Änderungen)' if dry_run else 'ECHTLAUF'}")
+    print(f"Dateien       : {total_files}")
+    print(f"{action_label:14}: {summary.moved}")
+    print(f"Übersprungen   : {summary.skipped}")
+    print(f"Fehler         : {summary.errors}")
+    print(f"Zielordner     : {len(summary.target_dirs)}")
+    empty_label = "Zu entfernen" if dry_run else "Entfernt"
+    print(f"{empty_label:14}: {summary.empty_dirs} leere Ordner")
+
+    if summary.files_by_type:
+        print("\nDateien nach Typ:")
+        for image_type, count in sorted(summary.files_by_type.items()):
+            print(f"  {image_type:12}: {count}")
+
+    print(f"\nLogdatei       : {log_path}")
+    print("=" * 64)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -309,14 +366,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FEHLER: Ordner existiert nicht: {source_dir}")
         return 1
 
-    print(f"Starte Verarbeitung von: {source_dir}")
+    print("=" * 64)
+    print("N.I.N.A. FITS ORGANIZER")
+    print("=" * 64)
+    print(f"Quelle: {source_dir}")
+    if args.dry_run:
+        print("Modus: DRY-RUN - es werden keine Dateien verschoben")
+    print()
     log_path = setup_logging(source_dir)
-    moved, skipped, errors = process_directory(source_dir, dry_run=args.dry_run)
-    logging.info("Verarbeitung abgeschlossen. moved=%s skipped=%s errors=%s", moved, skipped, errors)
-    print(f"Verarbeitung abgeschlossen. moved={moved} skipped={skipped} errors={errors}")
-    print(f"Logdatei: {log_path}")
+    summary = process_directory(source_dir, dry_run=args.dry_run)
+    logging.info(
+        "Verarbeitung abgeschlossen. moved=%s skipped=%s errors=%s",
+        summary.moved,
+        summary.skipped,
+        summary.errors,
+    )
+    print_summary(source_dir, log_path, summary, dry_run=args.dry_run)
 
-    return 1 if errors else 0
+    return 1 if summary.errors else 0
 
 
 if __name__ == "__main__":

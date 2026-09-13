@@ -38,3 +38,46 @@ def test_ensure_unique_path_appends_counter(tmp_path):
 
     assert candidate.name == "target_1.fits"
     assert not candidate.exists()
+
+
+def test_create_target_directory_groups_dates_under_year_object_telescope_camera(tmp_path):
+    mod = load_organizer_module()
+    first_night = {
+        "OBJECT": "M-66",
+        "TELESCOP": "ASA10",
+        "CAMERAID": "ASI2600MC-Duo",
+        "DATE-LOC": "2026-04-07T22:00:00",
+    }
+    second_night = {
+        "OBJECT": "M-66",
+        "TELESCOP": "ASA10",
+        "CAMERAID": "ASI2600MC-Duo",
+        "DATE-LOC": "2026-04-17T22:00:00",
+    }
+    next_year = {
+        "OBJECT": "M-66",
+        "TELESCOP": "ASA10",
+        "CAMERAID": "ASI2600MC-Duo",
+        "DATE-LOC": "2027-04-17T22:00:00",
+    }
+
+    expected_folder = tmp_path / "2026_M-66_ASA10_ASI2600MC-Duo"
+    assert mod.create_target_directory(tmp_path, first_night) == expected_folder
+    assert mod.create_target_directory(tmp_path, second_night) == expected_folder
+    assert mod.create_target_directory(tmp_path, next_year) == tmp_path / "2027_M-66_ASA10_ASI2600MC-Duo"
+
+
+def test_remove_empty_directories_removes_nested_empty_folders(tmp_path):
+    mod = load_organizer_module()
+    empty_parent = tmp_path / "empty-parent"
+    empty_child = empty_parent / "empty-child"
+    empty_child.mkdir(parents=True)
+    non_empty = tmp_path / "non-empty"
+    non_empty.mkdir()
+    (non_empty / "keep.txt").write_text("keep", encoding="utf-8")
+
+    removed = mod.remove_empty_directories(tmp_path, dry_run=False)
+
+    assert removed == 2
+    assert not empty_parent.exists()
+    assert non_empty.exists()

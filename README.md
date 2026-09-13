@@ -69,13 +69,44 @@ python hg-nina-fits-organizer.py /path/to/nina/root
 Parameter:
 
 - `/path/to/nina/root`: N.I.N.A.-Basisordner mit den Capture-Ordnern `LIGHT`, `DARK`, `FLAT`, `BIAS` oder `SNAPSHOT`.
-- `--dry-run`: zeigt die geplanten Verschiebungen an, ohne Dateien zu verschieben oder leere Quellordner zu löschen.
+- `--dry-run`: zeigt die geplanten Verschiebungen und das Entfernen leerer Unterordner an, ohne Änderungen vorzunehmen.
 
 Beispiele:
 
 ```bash
 python hg-nina-fits-organizer.py /path/to/nina/root --dry-run
 python hg-nina-fits-organizer.py D:\\Bilder\\NINA\\2025-01-15
+```
+
+Nach der Verarbeitung zeigt das Skript eine Zusammenfassung mit Modus,
+Dateizahlen, Zielordnern, übersprungenen Dateien, Fehlern und einer Aufteilung
+nach Bildtyp. Im `--dry-run`-Modus werden die geplanten Aktionen mit
+`[DRY-RUN]` markiert; die ausführlichen Zeitstempel-Einträge stehen weiterhin
+in der erzeugten Logdatei.
+
+Beispielausgabe:
+
+```text
+================================================================
+N.I.N.A. FITS ORGANIZER - ZUSAMMENFASSUNG
+================================================================
+Quelle        : D:\Bilder\NINA\2026-04
+Modus         : ECHTLAUF
+Dateien       : 128
+Verarbeitet   : 128
+Übersprungen   : 0
+Fehler         : 0
+Zielordner     : 1
+Entfernt       : 4 leere Ordner
+
+Dateien nach Typ:
+	BIAS        : 20
+	DARK        : 24
+	FLAT        : 24
+	LIGHT       : 60
+
+Logdatei       : D:\Bilder\NINA\2026-04\2026-09-13_21-30-00_fits_organizer.log
+================================================================
 ```
 
 ### Analyze one FITS file
@@ -123,17 +154,17 @@ Hinweis: Der FITS-Header-Key `FILTER` wird direkt in den Dateien überschrieben.
 
 ### Target folder hierarchy
 
-The organizer creates one session folder and then one subfolder per frame type.
+The organizer creates one folder per year, object, telescope, and camera, then one subfolder per frame type.
 
-Session folder:
+Object folder:
 
 ```text
-OBJECT_TELESCOP_DATE_FOCALLEN_gGAIN_tCCD-TEMP_CAMERAID
+YYYY_OBJECT_TELESCOP_CAMERAID/
 ```
 
-Exposure is intentionally excluded from the session folder name so multiple exposure times for the same object/session stay together.
+All nights and acquisition setups in the same year for the same object, telescope, and camera are kept together. The exact date and time remain in each FITS filename and in its FITS header.
 
-Subfolders inside this session folder:
+Subfolders inside this object folder:
 
 ```text
 LIGHT/
