@@ -8,6 +8,27 @@ astrophotography software N.I.N.A..
 It reads FITS headers and automatically restructures folders and filenames 
 based on imaging parameters and object names.
 
+Verwendung:
+    python hg-nina-fits-organizer.py <nina-ordner> [--dry-run]
+
+Parameter:
+    <nina-ordner>  Pfad zum N.I.N.A.-Basisordner.
+                   Darunter werden FITS-Dateien in den Ordnern LIGHT, DARK,
+                   FLAT, BIAS und SNAPSHOT verarbeitet.
+    --dry-run      Zeigt die geplanten Verschiebungen nur an. Es werden keine
+                   Dateien verschoben und keine leeren Quellordner geloescht.
+
+Beispiele:
+    python hg-nina-fits-organizer.py D:\\Bilder\\NINA\\2025-01-15
+    python hg-nina-fits-organizer.py D:\\Bilder\\NINA\\2025-01-15 --dry-run
+    python hg-nina-fits-organizer.py /home/user/bilder/nina/2025-01-15
+
+Hinweis:
+    Die Dateien werden anhand ihrer FITS-Header in Sitzungsordner einsortiert
+    und umbenannt. Die Originaldateien werden dabei verschoben. Vor dem ersten
+    echten Lauf wird ein Test mit --dry-run empfohlen. Eine Zeitstempel-Logdatei
+    wird im angegebenen N.I.N.A.-Basisordner angelegt.
+
 Copyright (c) 2024-2025 by ramona & hagen.gloetter@gmail.com
 """
 

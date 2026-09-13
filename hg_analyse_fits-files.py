@@ -9,6 +9,22 @@ astrophotography software N.I.N.A..
 It extracts key metadata from the FITS headers and prints a
 readable analysis report.
 
+Verwendung:
+    python hg_analyse_fits-files.py <fits-datei>
+
+Parameter:
+    <fits-datei>  Pfad zu genau einer FITS-Datei (*.fits / *.fit).
+
+Beispiele:
+    python hg_analyse_fits-files.py D:\\Bilder\\LIGHT\\bild_0001.fits
+    python hg_analyse_fits-files.py /home/user/bilder/light/bild_0001.fits
+
+Hinweis:
+    Aus dem FITS-Header werden unter anderem Objekt, Teleskop, Kamera,
+    Belichtungszeit, Gain, Sensortemperatur, Pixelgroesse, Fokalverhaeltnis,
+    Koordinaten und Luftmasse ausgegeben. Zusaetzlich werden Mittelwert und
+    Standardabweichung der Bilddaten berechnet. Die FITS-Datei wird nicht veraendert.
+
 Copyright (c) 2024-2025 by ramona & hagen.gloetter@gmail.com
 """
 

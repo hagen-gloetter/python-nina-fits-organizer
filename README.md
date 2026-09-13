@@ -60,21 +60,64 @@ make_venv.bat
 
 ### Organize a N.I.N.A. dataset
 
+Verwendung:
+
 ```bash
 python hg-nina-fits-organizer.py /path/to/nina/root
 ```
 
-### Dry-run mode
+Parameter:
+
+- `/path/to/nina/root`: N.I.N.A.-Basisordner mit den Capture-Ordnern `LIGHT`, `DARK`, `FLAT`, `BIAS` oder `SNAPSHOT`.
+- `--dry-run`: zeigt die geplanten Verschiebungen an, ohne Dateien zu verschieben oder leere Quellordner zu löschen.
+
+Beispiele:
 
 ```bash
 python hg-nina-fits-organizer.py /path/to/nina/root --dry-run
+python hg-nina-fits-organizer.py D:\\Bilder\\NINA\\2025-01-15
 ```
 
 ### Analyze one FITS file
 
+Verwendung:
+
 ```bash
 python hg_analyse_fits-files.py /path/to/file.fits
 ```
+
+Parameter:
+
+- `/path/to/file.fits`: genau eine FITS-Datei. Das Skript liest den Header und berechnet Bildstatistiken, verändert die Datei aber nicht.
+
+Beispiel:
+
+```bash
+python hg_analyse_fits-files.py D:\\Bilder\\LIGHT\\bild_0001.fits
+```
+
+### Set the FITS filter value
+
+Verwendung:
+
+```bash
+python hg_set_filter.py <folder> [filter]
+```
+
+Parameter:
+
+- `<folder>`: Ordner mit FITS-Dateien (`*.fits` oder `*.fit`).
+- `[filter]`: optionaler Wert `B`, `G`, `L`, `NONE`, `NOFILTER`, `R` oder `RGB`; Standard ist `NOFILTER`.
+
+Beispiele:
+
+```bash
+python hg_set_filter.py D:\\Bilder\\LIGHT\\
+python hg_set_filter.py D:\\Bilder\\LIGHT\\ RGB
+python hg_set_filter.py D:\\Bilder\\LIGHT\\ L
+```
+
+Hinweis: Der FITS-Header-Key `FILTER` wird direkt in den Dateien überschrieben. Es wird kein Backup erstellt.
 
 ## Naming Scheme
 
@@ -124,7 +167,7 @@ pytest -q
 
 Recommended local checks before commit:
 - run tests
-- run both CLIs with --help
+- run all CLIs with `--help`
 - test organizer with --dry-run on representative sample data
 
 ## Known Particularities
