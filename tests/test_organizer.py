@@ -81,3 +81,20 @@ def test_remove_empty_directories_removes_nested_empty_folders(tmp_path):
     assert removed == 2
     assert not empty_parent.exists()
     assert non_empty.exists()
+
+
+def test_ensure_project_structure_creates_pro_and_final_in_target_dir(tmp_path):
+    mod = load_organizer_module()
+    object_dir = tmp_path / "2026_M-66_ASA10_ASI2600MC-Duo"
+    object_dir.mkdir(parents=True)
+
+    created = mod.ensure_project_structure(object_dir)
+
+    assert created == 2
+    assert (object_dir / "PRO").is_dir()
+    assert (object_dir / "FINAL").is_dir()
+    assert (object_dir / "PRO" / "Processing_Daten_hier.txt").exists()
+    assert not (object_dir / "PRO" / "Fertige_Bilder_hier.txt").exists()
+    assert (object_dir / "FINAL" / "Fertige_Bilder_hier.txt").exists()
+    assert not (object_dir / "FINAL" / "Processing_Daten_hier.txt").exists()
+    assert not (tmp_path / "LIGHT").exists()

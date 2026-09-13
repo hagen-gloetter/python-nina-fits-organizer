@@ -102,10 +102,34 @@ def clean_dashes(text: str) -> str:
 
 
 def clean_camera_name(camera_id: object) -> str:
-    """Remove common noisy camera prefixes."""
+    """Remove common noisy camera prefixes and normalize spacing."""
     camera_text = str(camera_id)
     camera_text = camera_text.replace("ZWOptical_ZWO", "").replace("ZWO", "")
+    camera_text = clean_string(camera_text)
     return clean_dashes(camera_text.strip(" _-"))
+
+
+def ensure_project_structure(target_dir: Path) -> int:
+    """Create PRO and FINAL folders in a target directory and seed the required placeholder files."""
+    created_dirs = 0
+    for folder_name in ("PRO", "FINAL"):
+        dir_path = target_dir / folder_name
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            created_dirs += 1
+
+    pro_dir = target_dir / "PRO"
+    final_dir = target_dir / "FINAL"
+
+    pro_file = pro_dir / "Processing_Daten_hier.txt"
+    if not pro_file.exists():
+        pro_file.write_text("", encoding="utf-8")
+
+    final_file = final_dir / "Fertige_Bilder_hier.txt"
+    if not final_file.exists():
+        final_file.write_text("", encoding="utf-8")
+
+    return created_dirs
 
 
 def get_header_value(header: fits.Header, key: str, default: str = "N/A") -> str:
@@ -292,6 +316,7 @@ def process_directory(source_dir: Path, dry_run: bool) -> ProcessingSummary:
                 target_dir = create_target_directory(source_dir, header)
                 target_dir_map[target_dir_key] = target_dir
                 summary.target_dirs.add(target_dir)
+                ensure_project_structure(target_dir)
                 logging.info("Neuer Zielordner: %s", target_dir)
             else:
                 target_dir = target_dir_map[target_dir_key]
