@@ -5,6 +5,7 @@ Python tools for astrophotography workflows with N.I.N.A.-generated FITS files.
 This repository contains:
 - a production script to organize and rename FITS files safely
 - an analysis script to inspect one FITS file and print useful acquisition stats
+- a standalone duplicate-finder script to quarantine byte-for-byte identical FITS files
 - lightweight automated tests for critical naming/path helpers
 
 ## Project Purpose
@@ -17,10 +18,15 @@ The organizer script restructures FITS files into metadata-based target folders 
 ## Features
 
 - Reads FITS headers via astropy
-- Supports N.I.N.A. capture folders: LIGHT, DARK, FLAT, BIAS, SNAPSHOT
-- Generates folder names from object/session metadata
+- Creates PixInsight-compatible target structure (`<JAHR>_<OBJEKT>_<Teleskop>[_<Kamera>]`) with subfolders `LIGHT`, `DARK`, `FLAT`, `BIAS`, `PROCESSING`, `PRO`, `FINAL`
+- Canonicalizes Messier/NGC/IC object names regardless of spelling (`"M 31"`, `"m31"`, `"M-31"`, `"Messier 31"` all become `M31`) and appends a common name for well-known objects (e.g. `M31-Andromedagalaxie`); existing folders using an older spelling are automatically migrated on the next real run
+- Automatically organizes FITS files located directly in night/session folders or in capture subfolders into their corresponding frame-type directories
+- Frames whose type cannot be determined from header, folder, or filename are routed to a visible `UNKNOWN` subfolder instead of being guessed as `LIGHT`
 - Generates deterministic file names from key acquisition values
-- Prevents accidental overwrites by adding numeric suffixes if needed
+- Migrates existing companion files, stacked results, and preview images into the target project
+- Detects byte-for-byte identical re-copies of an already-organized file (e.g. accidentally re-imported raw data) and overwrites the existing target instead of creating a duplicate frame
+- Prevents accidental overwrites by adding numeric suffixes for genuinely different files that happen to compute the same target name
+- Cleans up empty source folders after restructuring
 - Writes timestamped log files in the selected source directory
 - Supports dry-run mode to preview actions
 
@@ -28,7 +34,9 @@ The organizer script restructures FITS files into metadata-based target folders 
 
 - hg-nina-fits-organizer.py: main organizer CLI
 - hg_analyse_fits-files.py: single-file FITS analyzer CLI
+- hg-remove-duplicates.py: standalone duplicate-finder/quarantine CLI
 - tests/test_organizer.py: unit tests for helper behavior
+- tests/test_remove_duplicates.py: unit tests for the duplicate finder
 - requirements.txt: Python dependencies
 - make_venv.bat: Windows setup helper
 
@@ -149,6 +157,28 @@ python hg_set_filter.py D:\\Bilder\\LIGHT\\ L
 ```
 
 Hinweis: Der FITS-Header-Key `FILTER` wird direkt in den Dateien überschrieben. Es wird kein Backup erstellt.
+
+### Find and quarantine duplicate FITS files
+
+Verwendung:
+
+```bash
+python hg-remove-duplicates.py <ordner> [--dry-run]
+```
+
+Parameter:
+
+- `<ordner>`: Wird rekursiv nach `*.fits`/`*.fit`-Dateien durchsucht.
+- `--dry-run`: zeigt nur an, welche Duplikate verschoben würden, ohne Änderungen vorzunehmen.
+
+Beispiele:
+
+```bash
+python hg-remove-duplicates.py K:\NINA3\2026_Snapshot_ASA10_ASI6200MM-Pro\LIGHT --dry-run
+python hg-remove-duplicates.py K:\NINA3
+```
+
+Duplikate werden ausschließlich über den Dateiinhalt erkannt (Größe + SHA-256-Hash, Dateiname spielt keine Rolle). Aus jeder Gruppe inhaltlich identischer Dateien bleibt die Datei mit dem alphabetisch ersten Pfad unangetastet; alle weiteren Kopien werden - unter Beibehaltung ihres relativen Pfads - in einen Ordner `_DUPLICATES_REMOVED/<Zeitstempel>/...` im Basisordner verschoben, **nicht gelöscht**. Der Quarantäne-Ordner selbst wird bei jedem Lauf automatisch von der Suche ausgeschlossen. Während des Laufs zeigt die Konsole laufend an, wie viele Dateien gefunden und geprüft wurden. Eine Zeitstempel-Logdatei wird im Basisordner angelegt.
 
 ## Naming Scheme
 
