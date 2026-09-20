@@ -14,6 +14,9 @@ All notable changes to this project are documented in this file.
 - Added a standalone `hg-remove-duplicates.py` script (with `tests/test_remove_duplicates.py`) that recursively scans a folder for byte-for-byte identical `*.fits`/`*.fit` files (grouped by size + SHA-256 hash, filename irrelevant) and moves every extra copy per group into a `_DUPLICATES_REMOVED/<timestamp>/...` quarantine folder (mirroring the relative path) instead of deleting it; supports `--dry-run` and writes a timestamped log file, consistent with the main organizer.
 - Added live progress output to `hg-remove-duplicates.py`: number of files found, how many share a size and need hashing, periodic "X/Y geprueft" progress during hashing, and an explicit console note that the `_DUPLICATES_REMOVED` quarantine folder is always excluded from scanning.
 
+### Fixed
+- Fixed `make_venv.bat` to be robust against interrupted/incomplete previous runs: it now runs from its own directory regardless of caller cwd, detects a venv missing `Activate.ps1` (created but never finished) and rebuilds it automatically, checks for the `py` launcher, and aborts with a clear error message on any failed step instead of silently continuing. It also now prints both the cmd (`activate.bat`) and PowerShell (`Activate.ps1`) activation commands.
+
 ### Changed
 - Refactored organizer script to use a robust CLI, pathlib-based paths, and deterministic filename generation.
 - Replaced `fits.open()` with `fits.getheader(..., 0)` for significantly faster header-only parsing without loading image data or multi-HDU blocks over slow/network mounts.

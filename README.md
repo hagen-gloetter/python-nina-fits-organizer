@@ -58,10 +58,21 @@ pip install -r requirements.txt
 
 ### Windows Shortcut
 
-Run:
+Run in PowerShell (from the repo root):
 
-```bat
-make_venv.bat
+```powershell
+.\make_venv.bat
+```
+
+Creates/updates the `astro_env_win` virtual environment and installs dependencies.
+It automatically rebuilds the venv if a previous run was interrupted, and verifies
+the `py` launcher and each install step, so it's safe to re-run at any time.
+
+Activate afterwards with:
+
+```powershell
+.\astro_env_win\Scripts\Activate.ps1   # PowerShell
+astro_env_win\Scripts\activate.bat     # cmd.exe
 ```
 
 ## Usage
